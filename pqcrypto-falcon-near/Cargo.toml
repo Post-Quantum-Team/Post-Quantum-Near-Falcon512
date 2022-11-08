@@ -1,0 +1,37 @@
+[package]
+name = "pqcrypto-falcon-near"
+description = "Post-Quantum Signature Scheme falcon for Near Blockchain"
+readme = "README.md"
+version = "0.2.10"
+authors = ["Zigtur <zigtur@protonmail.com>"]
+edition = "2022"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/rustpq/"
+repository = "https://github.com/rustpq/pqcrypto/"
+keywords = ["cryptography", "post-quantum", "security"]
+categories = ["cryptography", "no-std"]
+
+[dependencies]
+pqcrypto-internals = { path = "../pqcrypto-internals", version = "0.2" }
+pqcrypto-traits = { path = "../pqcrypto-traits", version = "0.3.4", default-features = false }
+libc = "0.2.0"
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde-big-array = { version = "0.3.2", features = ["const-generics"], optional = true }
+
+[features]
+default = ["avx2", "std"]
+avx2 = ["std"]
+std = ["pqcrypto-traits/std"]
+serialization = ["serde", "serde-big-array"]
+
+[dev-dependencies]
+rand = "0.7.0"
+
+[build-dependencies]
+cc = { version = "1.0", features = ["parallel"] }
+glob = "0.3.0"
+
+[badges]
+travis-ci = { repository = "rustpq/pqcrypto", branch = "master" }
+maintenance = { status = "actively-developed" }
+
