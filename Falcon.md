@@ -1,4 +1,6 @@
 ## Documentation
+This document is a documentation coming from the official C implementation of the Falcon algorithm.
+
 ### Secret key specific
 A private key, in its encoded format, can be used as parameter to falcon_sign_dyn(). 
 
