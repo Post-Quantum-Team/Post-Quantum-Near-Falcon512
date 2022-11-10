@@ -5,25 +5,12 @@
 //!
 //!  * falcon-512
 // This file has been generated from falcon512-c-near.
-// Find the templates in pqcrypto-template
+
 use libc::c_int;
 
 // ensures we link correctly
 #[allow(unused_imports)]
 use pqcrypto_internals::*;
-
-/*
-pub const PQCLEAN_FALCON512_CLEAN_CRYPTO_SECRETKEYBYTES: usize = 1281;
-pub const PQCLEAN_FALCON512_CLEAN_CRYPTO_PUBLICKEYBYTES: usize = 897;
-pub const PQCLEAN_FALCON512_CLEAN_CRYPTO_BYTES: usize = 690;
-
-#[cfg(enable_x86_avx2)]
-pub const PQCLEAN_FALCON512_AVX2_CRYPTO_SECRETKEYBYTES: usize = 1281;
-#[cfg(enable_x86_avx2)]
-pub const PQCLEAN_FALCON512_AVX2_CRYPTO_PUBLICKEYBYTES: usize = 897;
-#[cfg(enable_x86_avx2)]
-pub const PQCLEAN_FALCON512_AVX2_CRYPTO_BYTES: usize = 690;
-*/
 
 // Falcon Error Codes
 pub const FALCON_ERR_RANDOM: isize = -1;
@@ -55,9 +42,10 @@ pub const NEAR_FALCON512_TMPSIZE_MAKEPUB: usize = 3073;
 pub const NEAR_FALCON512_TMPSIZE_SIGNDYN: usize = 39943;
 pub const NEAR_FALCON512_TMPSIZE_VERIFY: usize = 4097;
 
+#[derive(Clone, Copy)]
+pub struct Shake256Context (pub [u64; SHAKE256_CONTEXT_SIZE]);
 
-
-#[link(name = "falcon-512_clean")]
+#[link(name = "falcon-512")]
 extern "C" {
     // Get size from C implementation
     pub fn falcon_privkey_size(NEAR_FALCON_DEGREE: usize) -> c_int;
@@ -87,334 +75,53 @@ extern "C" {
     
     // Signature verification
     pub fn falcon_verify(sig: *const u8, sig_len: usize, sig_type: usize, pubkey: *const u8, pubkey_len: usize, data: *const u8, data_len: usize, tmp: *const u8, tmp_len: usize) -> c_int;
-
-
-    /*pub fn PQCLEAN_FALCON512_CLEAN_crypto_sign_keypair(pk: *mut u8, sk: *mut u8) -> c_int;
-    pub fn PQCLEAN_FALCON512_CLEAN_crypto_sign(
-        sm: *mut u8,
-        smlen: *mut usize,
-        msg: *const u8,
-        len: usize,
-        sk: *const u8,
-    ) -> c_int;
-    pub fn PQCLEAN_FALCON512_CLEAN_crypto_sign_open(
-        m: *mut u8,
-        mlen: *mut usize,
-        sm: *const u8,
-        smlen: usize,
-        pk: *const u8,
-    ) -> c_int;
-    pub fn PQCLEAN_FALCON512_CLEAN_crypto_sign_signature(
-        sig: *mut u8,
-        siglen: *mut usize,
-        m: *const u8,
-        mlen: usize,
-        sk: *const u8,
-    ) -> c_int;
-    pub fn PQCLEAN_FALCON512_CLEAN_crypto_sign_verify(
-        sig: *const u8,
-        siglen: usize,
-        m: *const u8,
-        mlen: usize,
-        pk: *const u8,
-    ) -> c_int;
-    pub fn PQCLEAN_FALCON512_CLEAN_get_seed(
-        seed: *const u8,
-        seed_len:  usize,
-    ) -> c_int; */
 }
-/*
-#[cfg(enable_x86_avx2)]
-#[link(name = "falcon-512_avx2")]
-extern "C" {
-    #[cfg(enable_x86_avx2)]
-    pub fn PQCLEAN_FALCON512_AVX2_crypto_sign_keypair(pk: *mut u8, sk: *mut u8) -> c_int;
-    #[cfg(enable_x86_avx2)]
-    pub fn PQCLEAN_FALCON512_AVX2_crypto_sign(
-        sm: *mut u8,
-        smlen: *mut usize,
-        msg: *const u8,
-        len: usize,
-        sk: *const u8,
-    ) -> c_int;
-    #[cfg(enable_x86_avx2)]
-    pub fn PQCLEAN_FALCON512_AVX2_crypto_sign_open(
-        m: *mut u8,
-        mlen: *mut usize,
-        sm: *const u8,
-        smlen: usize,
-        pk: *const u8,
-    ) -> c_int;
-    #[cfg(enable_x86_avx2)]
-    pub fn PQCLEAN_FALCON512_AVX2_crypto_sign_signature(
-        sig: *mut u8,
-        siglen: *mut usize,
-        m: *const u8,
-        mlen: usize,
-        sk: *const u8,
-    ) -> c_int;
-    #[cfg(enable_x86_avx2)]
-    pub fn PQCLEAN_FALCON512_AVX2_crypto_sign_verify(
-        sig: *const u8,
-        siglen: usize,
-        m: *const u8,
-        mlen: usize,
-        pk: *const u8,
-    ) -> c_int;
-    pub fn PQCLEAN_FALCON512_AVX2_get_seed(
-        seed: *const u8,
-        seed_len:  usize,
-    ) -> c_int;
-}
+
 
 
 #[cfg(test)]
 mod test_falcon512_clean {
     use super::*;
-    use alloc::vec;
-    use alloc::vec::Vec;
-    use rand::prelude::*;
-    use std::dbg;
-
-    #[test]
-    fn get_seed_test() {
-        unsafe {
-            let mut tab = vec![0u8; 16];;
-            let size = 16;
-            PQCLEAN_FALCON512_CLEAN_get_seed(tab.as_mut_ptr(), size);
-            dbg!(tab);
-
-        }
-    }
 
     #[test]
     fn test_ffi() {
+        let mut test = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+        unsafe { shake256_init(test.0.as_mut_ptr()) }
+        let seed = "ceci est la seed";
+        let seed_size = seed.len();
         unsafe {
-            let mut rng = rand::thread_rng();
-            let mut mlen: usize = rng.gen::<u16>() as usize;
-            let msg: Vec<u8> = (0..mlen).map(|_| rng.gen()).collect();
-
-            let mut pk = vec![0u8; PQCLEAN_FALCON512_CLEAN_CRYPTO_PUBLICKEYBYTES];
-            let mut sk = vec![0u8; PQCLEAN_FALCON512_CLEAN_CRYPTO_SECRETKEYBYTES];
-            let mut pk_alt = vec![0u8; PQCLEAN_FALCON512_CLEAN_CRYPTO_PUBLICKEYBYTES];
-            let mut sk_alt = vec![0u8; PQCLEAN_FALCON512_CLEAN_CRYPTO_SECRETKEYBYTES];
-            let mut detached_sig = vec![0u8; PQCLEAN_FALCON512_CLEAN_CRYPTO_BYTES];
-            let mut sm = Vec::with_capacity(mlen + PQCLEAN_FALCON512_CLEAN_CRYPTO_BYTES);
-            let mut smlen = 0;
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_keypair(pk.as_mut_ptr(), sk.as_mut_ptr())
-            );
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign(
-                    sm.as_mut_ptr(),
-                    &mut smlen as *mut usize,
-                    msg.as_ptr(),
-                    mlen,
-                    sk.as_ptr()
-                )
-            );
-            sm.set_len(smlen);
-
-            let mut unpacked_m = Vec::with_capacity(mlen + PQCLEAN_FALCON512_CLEAN_CRYPTO_BYTES);
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_open(
-                    unpacked_m.as_mut_ptr(),
-                    &mut mlen as *mut usize,
-                    sm.as_ptr(),
-                    sm.len(),
-                    pk.as_ptr()
-                )
-            );
-            unpacked_m.set_len(mlen);
-            assert_eq!(unpacked_m, msg);
-
-            // check verification fails with wrong pk
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_keypair(
-                    pk_alt.as_mut_ptr(),
-                    sk_alt.as_mut_ptr()
-                )
-            );
-            assert_eq!(
-                -1,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_open(
-                    unpacked_m.as_mut_ptr(),
-                    &mut mlen as *mut usize,
-                    sm.as_ptr(),
-                    sm.len(),
-                    pk_alt.as_ptr()
-                )
-            );
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_signature(
-                    detached_sig.as_mut_ptr(),
-                    &mut smlen as *mut usize,
-                    msg.as_ptr(),
-                    msg.len(),
-                    sk.as_ptr()
-                )
-            );
-            assert!(
-                smlen <= PQCLEAN_FALCON512_CLEAN_CRYPTO_BYTES,
-                "Signed message length should be ≤ CRYPTO_BYTES"
-            );
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_verify(
-                    detached_sig.as_ptr(),
-                    smlen,
-                    msg.as_ptr(),
-                    msg.len(),
-                    pk.as_ptr()
-                )
-            );
-            assert_eq!(
-                -1,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_verify(
-                    detached_sig.as_ptr(),
-                    smlen,
-                    msg.as_ptr(),
-                    msg.len(),
-                    pk_alt.as_ptr()
-                )
-            );
-            assert_eq!(
-                -1,
-                PQCLEAN_FALCON512_CLEAN_crypto_sign_verify(
-                    detached_sig.as_ptr(),
-                    smlen,
-                    msg.as_ptr(),
-                    msg.len() - 1,
-                    pk.as_ptr()
-                )
-            );
+            shake256_init_prng_from_seed(test.0.as_mut_ptr(), seed.as_ptr(), seed_size);
         }
+        let mut output = [0u8; 128];
+        unsafe {
+            shake256_extract(test.0.as_mut_ptr(), output.as_mut_ptr(), 128);
+        }
+
+        // Initialize Keypair elements
+        let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
+        let mut sk = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
+        let mut sig = [0u8; NEAR_FALCON512_SIG_PADDED_SIZE];
+        let mut tmp_keygen = [0u8; NEAR_FALCON512_TMPSIZE_KEYGEN];
+        let mut tmp_makepub = [0u8; NEAR_FALCON512_TMPSIZE_MAKEPUB];
+        let mut tmp_signdyn = [0u8; NEAR_FALCON512_TMPSIZE_SIGNDYN];
+        let tmp_verify = [0u8; NEAR_FALCON512_TMPSIZE_VERIFY];
+
+        unsafe{ 
+            falcon_keygen_make(test.0.as_ptr(), NEAR_FALCON_DEGREE, sk.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN);
+
+            // regenerate pubkey
+            let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
+            falcon_make_public(pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, sk.as_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, tmp_makepub.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_MAKEPUB);
+
+            shake256_init_prng_from_system(test.0.as_mut_ptr());
+
+            let text = "Bonjour ceci est un petit test";
+            let text_size = text.len();
+            let sig_len = NEAR_FALCON512_SIG_PADDED_SIZE;
+            falcon_sign_dyn(test.0.as_ptr(), sig.as_mut_ptr(), &sig_len, FALCON_SIG_PADDED, sk.as_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, text.as_ptr(), text_size, tmp_signdyn.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_SIGNDYN);
+
+            falcon_verify(sig.as_ptr(), sig_len, FALCON_SIG_PADDED, pk.as_ptr(), NEAR_FALCON512_PUBKEY_SIZE, text.as_ptr(), text_size, tmp_verify.as_ptr(), NEAR_FALCON512_TMPSIZE_VERIFY);
+
+        } ;
     }
 }
-
-#[cfg(all(test, enable_x86_avx2, feature = "avx2"))]
-mod test_falcon512_avx2 {
-    use super::*;
-    use alloc::vec;
-    use alloc::vec::Vec;
-    use rand::prelude::*;
-    use std::is_x86_feature_detected;
-
-    #[test]
-    fn test_ffi() {
-        if !is_x86_feature_detected!("avx2") {
-            return;
-        }
-        unsafe {
-            let mut rng = rand::thread_rng();
-            let mut mlen: usize = rng.gen::<u16>() as usize;
-            let msg: Vec<u8> = (0..mlen).map(|_| rng.gen()).collect();
-
-            let mut pk = vec![0u8; PQCLEAN_FALCON512_AVX2_CRYPTO_PUBLICKEYBYTES];
-            let mut sk = vec![0u8; PQCLEAN_FALCON512_AVX2_CRYPTO_SECRETKEYBYTES];
-            let mut pk_alt = vec![0u8; PQCLEAN_FALCON512_AVX2_CRYPTO_PUBLICKEYBYTES];
-            let mut sk_alt = vec![0u8; PQCLEAN_FALCON512_AVX2_CRYPTO_SECRETKEYBYTES];
-            let mut detached_sig = vec![0u8; PQCLEAN_FALCON512_AVX2_CRYPTO_BYTES];
-            let mut sm = Vec::with_capacity(mlen + PQCLEAN_FALCON512_AVX2_CRYPTO_BYTES);
-            let mut smlen = 0;
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_keypair(pk.as_mut_ptr(), sk.as_mut_ptr())
-            );
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_AVX2_crypto_sign(
-                    sm.as_mut_ptr(),
-                    &mut smlen as *mut usize,
-                    msg.as_ptr(),
-                    mlen,
-                    sk.as_ptr()
-                )
-            );
-            sm.set_len(smlen);
-
-            let mut unpacked_m = Vec::with_capacity(mlen + PQCLEAN_FALCON512_AVX2_CRYPTO_BYTES);
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_open(
-                    unpacked_m.as_mut_ptr(),
-                    &mut mlen as *mut usize,
-                    sm.as_ptr(),
-                    sm.len(),
-                    pk.as_ptr()
-                )
-            );
-            unpacked_m.set_len(mlen);
-            assert_eq!(unpacked_m, msg);
-
-            // check verification fails with wrong pk
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_keypair(
-                    pk_alt.as_mut_ptr(),
-                    sk_alt.as_mut_ptr()
-                )
-            );
-            assert_eq!(
-                -1,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_open(
-                    unpacked_m.as_mut_ptr(),
-                    &mut mlen as *mut usize,
-                    sm.as_ptr(),
-                    sm.len(),
-                    pk_alt.as_ptr()
-                )
-            );
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_signature(
-                    detached_sig.as_mut_ptr(),
-                    &mut smlen as *mut usize,
-                    msg.as_ptr(),
-                    msg.len(),
-                    sk.as_ptr()
-                )
-            );
-            assert!(
-                smlen <= PQCLEAN_FALCON512_AVX2_CRYPTO_BYTES,
-                "Signed message length should be ≤ CRYPTO_BYTES"
-            );
-            assert_eq!(
-                0,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_verify(
-                    detached_sig.as_ptr(),
-                    smlen,
-                    msg.as_ptr(),
-                    msg.len(),
-                    pk.as_ptr()
-                )
-            );
-            assert_eq!(
-                -1,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_verify(
-                    detached_sig.as_ptr(),
-                    smlen,
-                    msg.as_ptr(),
-                    msg.len(),
-                    pk_alt.as_ptr()
-                )
-            );
-            assert_eq!(
-                -1,
-                PQCLEAN_FALCON512_AVX2_crypto_sign_verify(
-                    detached_sig.as_ptr(),
-                    smlen,
-                    msg.as_ptr(),
-                    msg.len() - 1,
-                    pk.as_ptr()
-                )
-            );
-        }
-    }
-}
-*/

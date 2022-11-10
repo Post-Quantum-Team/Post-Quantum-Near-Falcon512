@@ -7,7 +7,7 @@ use std::path::{PathBuf};
 macro_rules! build_clean {
     ($variant:expr) => {
         let mut builder = cc::Build::new();
-        let target_dir: PathBuf = ["falcon512-c-near", "clean"]
+        let target_dir: PathBuf = ["falcon512-c-near", "code"]
             .iter()
             .collect();
 
@@ -27,7 +27,7 @@ macro_rules! build_clean {
                     .into_iter()
                     .map(|p| p.unwrap().to_string_lossy().into_owned()),
             );
-        builder.compile(format!("{}_clean", $variant).as_str());
+        builder.compile(format!("{}", $variant).as_str());
     };
 }
 
@@ -35,7 +35,7 @@ macro_rules! build_avx2 {
     ($variant:expr) => {
 
         let mut builder = cc::Build::new();
-        let target_dir: PathBuf = ["falcon512-c-near", "avx2"]
+        let target_dir: PathBuf = ["falcon512-c-near", "code"]
             .iter()
             .collect();
 
@@ -67,7 +67,7 @@ macro_rules! build_avx2 {
                     .into_iter()
                     .map(|p| p.unwrap().to_string_lossy().into_owned()),
             );
-        builder.compile(format!("{}_avx2", $variant).as_str());
+        builder.compile(format!("{}", $variant).as_str());
     };
 }
 
@@ -87,17 +87,13 @@ fn main() {
     #[allow(unused_variables)]
     let is_macos = target_os == "macos";
 
-    build_clean!("falcon-512");
+    
     if target_arch == "x86_64" && avx2_enabled {
         build_avx2!("falcon-512");
-    }
-    build_clean!("falcon-1024");
-    if target_arch == "x86_64" && avx2_enabled {
-        build_avx2!("falcon-1024");
-    }
-
-    if target_arch == "x86_64" && avx2_enabled {
         // Print enableing flag for AVX2 implementation
         println!("cargo:rustc-cfg=enable_x86_avx2");
+    }
+    else {
+        build_clean!("falcon-512");
     }
 }
