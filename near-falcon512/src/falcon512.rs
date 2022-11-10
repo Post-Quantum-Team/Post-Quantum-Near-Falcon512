@@ -24,7 +24,6 @@ use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
 use crate::ffi::{self, shake256_init_prng_from_seed, Shake256Context, shake256_init_prng_from_system, falcon_make_public};
-use alloc::vec::Vec;
 use pqcrypto_traits::sign as primitive;
 use pqcrypto_traits::{Error, Result};
 
@@ -131,28 +130,6 @@ impl primitive::DetachedSignature for DetachedSignature {
     }
 }
 
-#[derive(Clone)]
-#[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
-pub struct SignedMessage(Vec<u8>);
-impl primitive::SignedMessage for SignedMessage {
-    /// Get this object as a byte slice
-    #[inline]
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_slice()
-    }
-
-    /// Construct this object from a byte slice
-    #[inline]
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        Ok(SignedMessage(bytes.to_vec()))
-    }
-}
-
-impl SignedMessage {
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-}
 
 /// Get the number of bytes for a public key
 pub const fn public_key_bytes() -> usize {
@@ -169,6 +146,7 @@ pub const fn signature_bytes() -> usize {
     ffi::NEAR_FALCON512_SIG_PADDED_SIZE
 }
 
+/// Initialize a Shake256Context from a seed parameter
 pub fn generator_from_seed(mut sc: Shake256Context, seed: &[u8]) {
     unsafe {
         let seed_len = seed.len();
@@ -176,6 +154,7 @@ pub fn generator_from_seed(mut sc: Shake256Context, seed: &[u8]) {
     }
 }
 
+/// Initialize a Shake256Context from the OS Random Generator
 pub fn generator_from_system_prng(mut sc: Shake256Context) {
     unsafe {
         shake256_init_prng_from_system(sc.0.as_mut_ptr());
@@ -201,6 +180,41 @@ pub fn keypair() -> (PublicKey, SecretKey) {
     (pk, sk)
 }
 
+/// Generate a falcon-512 keypair from a seed
+pub fn keypair_from_seed(seed: &[u8]) -> (PublicKey, SecretKey) {
+    let mut pk = PublicKey::new();
+    let mut sk = SecretKey::new();
+    let mut tmp_keygen = [0u8; ffi::NEAR_FALCON512_TMPSIZE_KEYGEN];
+    let sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+    generator_from_seed(sc, seed);
+    unsafe { 
+        assert_eq!(
+        ffi::falcon_keygen_make(sc.0.as_ptr(), 
+        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(), 
+        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(), 
+        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), 
+        ffi::NEAR_FALCON512_TMPSIZE_KEYGEN),
+        0); };
+    (pk, sk)
+}
+
+/// Generate a falcon-512 keypair from a Shake256Context
+pub fn keypair_from_shake256context(sc: Shake256Context) -> (PublicKey, SecretKey) {
+    let mut pk = PublicKey::new();
+    let mut sk = SecretKey::new();
+    let mut tmp_keygen = [0u8; ffi::NEAR_FALCON512_TMPSIZE_KEYGEN];
+    unsafe { 
+        assert_eq!(
+        ffi::falcon_keygen_make(sc.0.as_ptr(), 
+        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(), 
+        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(), 
+        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), 
+        ffi::NEAR_FALCON512_TMPSIZE_KEYGEN),
+        0); };
+    (pk, sk)
+}
+
+/// Generate public key from secret key
 pub fn public_key_from_secret_key(sk: SecretKey) -> PublicKey {
 
     let mut pk = PublicKey::new();
@@ -269,6 +283,7 @@ pub fn verify_detached_signature(
 mod test {
     use super::*;
     use rand::prelude::*;
+    use std::vec::Vec;
 
     #[test]
     pub fn test_sign_detached() {
@@ -277,6 +292,32 @@ mod test {
         let message = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
 
         let (pk, sk) = keypair();
+        let sig = detached_sign(&message, &sk);
+        assert!(verify_detached_signature(&sig, &message, &pk).is_ok());
+        assert!(!verify_detached_signature(&sig, &message[..message.len() - 1], &pk).is_ok());
+    }
+
+    #[test]
+    pub fn test_sign_detached_seed() {
+        let mut rng = rand::thread_rng();
+        let len: u16 = rng.gen();
+        let message = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+
+        let seed = "Crypto is NEAR !";
+        let (pk, sk) = keypair_from_seed(seed.as_bytes());
+        let sig = detached_sign(&message, &sk);
+        assert!(verify_detached_signature(&sig, &message, &pk).is_ok());
+        assert!(!verify_detached_signature(&sig, &message[..message.len() - 1], &pk).is_ok());
+    }
+
+    #[test]
+    pub fn test_sign_detached_shake() {
+        let mut rng = rand::thread_rng();
+        let len: u16 = rng.gen();
+        let message = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+
+        let sc = Shake256Context([3u64; ffi::SHAKE256_CONTEXT_SIZE]);
+        let (pk, sk) = keypair_from_shake256context(sc);
         let sig = detached_sign(&message, &sk);
         assert!(verify_detached_signature(&sig, &message, &pk).is_ok());
         assert!(!verify_detached_signature(&sig, &message[..message.len() - 1], &pk).is_ok());
