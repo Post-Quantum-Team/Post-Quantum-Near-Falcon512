@@ -91,7 +91,7 @@ simple_struct!(
     ffi::NEAR_FALCON512_PRIVKEY_SIZE
 );
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DetachedSignature(
     #[cfg_attr(feature = "serialization", serde(with = "BigArray"))]
@@ -247,6 +247,7 @@ pub fn detached_sign(msg: &[u8], sk: &SecretKey) -> DetachedSignature {
             tmp_signdyn.as_mut_ptr(),
             ffi::NEAR_FALCON512_TMPSIZE_SIGNDYN);
     }
+    sig.1 = sig.0.len();
     sig
 }
 
