@@ -37,5 +37,5 @@ pub use crate::ffi::{
     Shake256Context, shake256_extract, shake256_flip, 
     shake256_init, shake256_init_prng_from_seed,
     shake256_init_prng_from_system, shake256_inject,
-    NEAR_FALCON512_PRIVKEY_SIZE, NEAR_FALCON512_PUBKEY_SIZE, NEAR_FALCON512_SIG_PADDED_SIZE as NEAR_FALCON512_SIG_SIZE,
+    NEAR_FALCON512_PRIVKEY_SIZE, NEAR_FALCON512_PUBKEY_SIZE, NEAR_FALCON512_SIG_PADDED_SIZE as NEAR_FALCON512_SIG_SIZE, SHAKE256_CONTEXT_SIZE,
 };
