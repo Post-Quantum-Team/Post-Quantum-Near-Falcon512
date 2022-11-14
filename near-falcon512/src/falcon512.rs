@@ -18,6 +18,8 @@ assert!(verifiedmsg == message);
 
 // This file is generated.
 
+use std::println;
+
 #[cfg(feature = "serialization")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serialization")]
@@ -147,7 +149,7 @@ pub const fn signature_bytes() -> usize {
 }
 
 /// Initialize a Shake256Context from a seed parameter
-pub fn generator_from_seed(mut sc: Shake256Context, seed: &[u8]) {
+pub fn generator_from_seed(sc: &mut Shake256Context, seed: &[u8]) {
     unsafe {
         let seed_len = seed.len();
         shake256_init_prng_from_seed(sc.0.as_mut_ptr(), seed.as_ptr(), seed_len);
@@ -185,8 +187,8 @@ pub fn keypair_from_seed(seed: &[u8]) -> (PublicKey, SecretKey) {
     let mut pk = PublicKey::new();
     let mut sk = SecretKey::new();
     let mut tmp_keygen = [0u8; ffi::NEAR_FALCON512_TMPSIZE_KEYGEN];
-    let sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
-    generator_from_seed(sc, seed);
+    let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+    generator_from_seed(&mut sc, seed);
     unsafe { 
         assert_eq!(
         ffi::falcon_keygen_make(sc.0.as_ptr(), 
