@@ -18,8 +18,6 @@ assert!(verifiedmsg == message);
 
 // This file is generated.
 
-use std::println;
-
 #[cfg(feature = "serialization")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serialization")]
