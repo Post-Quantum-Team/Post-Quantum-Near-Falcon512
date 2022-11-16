@@ -29,7 +29,7 @@ use pqcrypto_traits::{Error, Result};
 
 macro_rules! simple_struct {
     ($type: ident, $size: expr) => {
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Debug)]
         #[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
         pub struct $type(
             #[cfg_attr(feature = "serialization", serde(with = "BigArray"))] [u8; $size],
@@ -81,6 +81,7 @@ macro_rules! simple_struct {
         }
     };
 }
+
 
 simple_struct!(
     PublicKey,
@@ -155,7 +156,7 @@ pub fn generator_from_seed(sc: &mut Shake256Context, seed: &[u8]) {
 }
 
 /// Initialize a Shake256Context from the OS Random Generator
-pub fn generator_from_system_prng(mut sc: Shake256Context) {
+pub fn generator_from_system_prng(sc: &mut Shake256Context) {
     unsafe {
         shake256_init_prng_from_system(sc.0.as_mut_ptr());
     }
@@ -167,8 +168,8 @@ pub fn keypair() -> (PublicKey, SecretKey) {
     let mut pk = PublicKey::new();
     let mut sk = SecretKey::new();
     let mut tmp_keygen = [0u8; ffi::NEAR_FALCON512_TMPSIZE_KEYGEN];
-    let sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
-    generator_from_system_prng(sc);
+    let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+    generator_from_system_prng(&mut sc);
     unsafe { 
         assert_eq!(
         ffi::falcon_keygen_make(sc.0.as_ptr(), 
@@ -232,8 +233,8 @@ pub fn detached_sign(msg: &[u8], sk: &SecretKey) -> DetachedSignature {
     let mut sig = DetachedSignature::new();
     let sig_len = ffi::NEAR_FALCON512_SIG_PADDED_SIZE;
     let mut tmp_signdyn = [0u8; ffi::NEAR_FALCON512_TMPSIZE_SIGNDYN];
-    let sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
-    generator_from_system_prng(sc);
+    let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+    generator_from_system_prng(&mut sc);
     unsafe {
         ffi::falcon_sign_dyn(
             sc.0.as_ptr(),
@@ -322,5 +323,13 @@ mod test {
         let sig = detached_sign(&message, &sk);
         assert!(verify_detached_signature(&sig, &message, &pk).is_ok());
         assert!(!verify_detached_signature(&sig, &message[..message.len() - 1], &pk).is_ok());
+    }
+
+    #[test]
+    pub fn test_random_keygen() {
+        let (pk, sk) = keypair();
+        let (pk2, sk2) = keypair();
+        assert_ne!(pk, pk2);
+        assert_ne!(sk, sk2);
     }
 }

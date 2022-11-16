@@ -81,6 +81,8 @@ extern "C" {
 
 #[cfg(test)]
 mod test_falcon512_clean {
+    use std::dbg;
+
     use super::*;
 
     #[test]
@@ -99,16 +101,27 @@ mod test_falcon512_clean {
 
         // Initialize Keypair elements
         let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
+        let mut pk2 = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
         let mut sk = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
+        let mut sk2 = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
         let mut sig = [0u8; NEAR_FALCON512_SIG_PADDED_SIZE];
         let mut tmp_keygen = [0u8; NEAR_FALCON512_TMPSIZE_KEYGEN];
         let mut tmp_makepub = [0u8; NEAR_FALCON512_TMPSIZE_MAKEPUB];
         let mut tmp_signdyn = [0u8; NEAR_FALCON512_TMPSIZE_SIGNDYN];
         let tmp_verify = [0u8; NEAR_FALCON512_TMPSIZE_VERIFY];
 
-        unsafe{ 
+        unsafe{
+            let mut test = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+            shake256_init_prng_from_system(test.0.as_mut_ptr());
             falcon_keygen_make(test.0.as_ptr(), NEAR_FALCON_DEGREE, sk.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN);
+            dbg!("{}", pk);
 
+            let mut test = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+            shake256_init_prng_from_system(test.0.as_mut_ptr());
+            falcon_keygen_make(test.0.as_ptr(), NEAR_FALCON_DEGREE, sk2.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk2.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN);
+            dbg!("{}", pk2);
+            // Test prng
+            assert_ne!(pk, pk2);
             // regenerate pubkey
             let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
             falcon_make_public(pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, sk.as_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, tmp_makepub.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_MAKEPUB);
