@@ -215,13 +215,37 @@ pub fn public_key_from_secret_key(sk: SecretKey) -> PublicKey {
 }
 
 
-/// Create a detached signature on the message
+/// Create a detached signature on the message, using random as Shake256Context input
 pub fn detached_sign(msg: &[u8], sk: &SecretKey) -> DetachedSignature {
     let mut sig = DetachedSignature::new();
     let sig_len = ffi::NEAR_FALCON512_SIG_PADDED_SIZE;
     let mut tmp_signdyn = [0u8; ffi::NEAR_FALCON512_TMPSIZE_SIGNDYN];
     let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
     generator_from_system_prng(&mut sc);
+    unsafe {
+        ffi::falcon_sign_dyn(
+            sc.0.as_ptr(),
+            sig.0.as_mut_ptr(),
+            &sig_len,
+            ffi::FALCON_SIG_PADDED,
+            sk.0.as_ptr(),
+            ffi::NEAR_FALCON512_PRIVKEY_SIZE,
+            msg.as_ptr(),
+            msg.len(),
+            tmp_signdyn.as_mut_ptr(),
+            ffi::NEAR_FALCON512_TMPSIZE_SIGNDYN);
+    }
+    sig.1 = sig.0.len();
+    sig
+}
+
+/// Create a detached signature on the message, using the seed as Shake256Context input
+pub fn detached_sign_with_seed(msg: &[u8], sk: &SecretKey, seed: &[u8]) -> DetachedSignature {
+    let mut sig = DetachedSignature::new();
+    let sig_len = ffi::NEAR_FALCON512_SIG_PADDED_SIZE;
+    let mut tmp_signdyn = [0u8; ffi::NEAR_FALCON512_TMPSIZE_SIGNDYN];
+    let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+    generator_from_seed(&mut sc, seed);
     unsafe {
         ffi::falcon_sign_dyn(
             sc.0.as_ptr(),
@@ -333,6 +357,23 @@ mod test {
         let sig = detached_sign(&message, &sk);
         assert!(verify_detached_signature(&sig, &message, &pk).is_ok());
         assert!(!verify_detached_signature(&sig, &message[..message.len() - 1], &pk).is_ok());
+    }
+
+    #[test]
+    pub fn test_sign_detached_seed() {
+        let mut rng = rand::thread_rng();
+        let len: u16 = rng.gen();
+        let message = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+
+        let (pk, sk) = keypair();
+        let seed_str = [1u8; 12];
+        let sig1 = detached_sign(&message, &sk);
+        let sig2 = detached_sign_with_seed(&message, &sk, &seed_str);
+        assert!(verify_detached_signature(&sig1, &message, &pk).is_ok());
+        assert!(verify_detached_signature(&sig2, &message, &pk).is_ok());
+        assert!(!verify_detached_signature(&sig1, &message[..message.len() - 1], &pk).is_ok());
+        assert!(!verify_detached_signature(&sig2, &message[..message.len() - 1], &pk).is_ok());
+        assert_ne!(sig1.0, sig2.0);
     }
 
     #[test]
