@@ -24,7 +24,7 @@ pub mod ffi;
 // to add : open as falcon512_open, sign as falcon512_sign,
 
 pub use crate::falcon512::{
-    detached_sign as falcon512_detached_sign, keypair as falcon512_keypair,
+    detached_sign as falcon512_detached_sign, detached_sign_with_seed as falcon512_detached_sign_with_seed, keypair as falcon512_keypair,
     public_key_bytes as falcon512_public_key_bytes, secret_key_bytes as falcon512_secret_key_bytes,
     signature_bytes as falcon512_signature_bytes,
     verify_detached_signature as falcon512_verify_detached_signature, generator_from_seed,
