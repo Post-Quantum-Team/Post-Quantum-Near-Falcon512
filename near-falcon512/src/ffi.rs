@@ -2,9 +2,12 @@
 //!
 //! This module defines the foreign function interface for the following
 //! crypto implementations from Near:
-//!
 //!  * falcon-512
-// This file has been generated from falcon512-c-near.
+//!
+//! This file has been generated from falcon-c-near.
+//! The ffi functions could be used to use Falcon-1024 too.
+//! To use Falcon-1024, change the NEAR_FALCON_DEGREE constant from 9 to 10.
+//! WARNING : if the NEAR_FALCON_DEGREE, the NEAR_FALCON512_* constants should not be used anymore
 
 use libc::c_int;
 
@@ -42,12 +45,12 @@ pub const NEAR_FALCON512_TMPSIZE_MAKEPUB: usize = 3073;
 pub const NEAR_FALCON512_TMPSIZE_SIGNDYN: usize = 39943;
 pub const NEAR_FALCON512_TMPSIZE_VERIFY: usize = 4097;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Shake256Context (pub [u64; SHAKE256_CONTEXT_SIZE]);
 
 #[link(name = "falcon-512")]
 extern "C" {
-    // Get size from C implementation
+    // Get size from C implementation (allow verification of the Rust defined constants)
     pub fn falcon_privkey_size(NEAR_FALCON_DEGREE: usize) -> c_int;
     pub fn falcon_pubkey_size(NEAR_FALCON_DEGREE: usize) -> c_int;
     pub fn falcon_sig_compressed_maxsize(NEAR_FALCON_DEGREE: usize) -> c_int;
@@ -69,6 +72,7 @@ extern "C" {
     // KeyPair Generation
     pub fn falcon_keygen_make(rng: *const u64, logn: usize, privkey: *mut u8, privkey_len: usize, pubkey: *mut u8, pubkey_len: usize, tmp: *mut u8, tmp_len: usize) -> c_int;
     pub fn falcon_make_public(pubkey: *const u8, pubkey_len: usize, privkey: *const u8, privkey_len: usize, tmp: *mut u8, tmp_len: usize) -> c_int;
+    pub fn falcon_get_logn(object: *const u8, object_len: usize) -> c_int;
 
     // Signature Generation
     pub fn falcon_sign_dyn(rng: *const u64, sig: *mut u8, sig_len: *const usize, sig_type: usize, privkey: *const u8, privkey_len: usize, data: *const u8, data_len: usize, tmp: *mut u8, tmp_len: usize) -> c_int;
@@ -80,61 +84,175 @@ extern "C" {
 
 
 #[cfg(test)]
-mod test_falcon512_clean {
-    use std::dbg;
+mod test_falcon512 {
+    use hex::encode as hexencode;
 
     use super::*;
 
     #[test]
-    fn test_ffi() {
-        let mut test = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
-        unsafe { shake256_init(test.0.as_mut_ptr()) }
-        let seed = "ceci est la seed";
-        let seed_size = seed.len();
+    fn test_shake256() {
         unsafe {
-            shake256_init_prng_from_seed(test.0.as_mut_ptr(), seed.as_ptr(), seed_size);
+            let mut sc = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+            shake256_init(sc.0.as_mut_ptr());
+
+            let injected_data = "This string will be injected in shake256_inject";
+            let len_injected_data = injected_data.len();
+            shake256_inject(sc.0.as_mut_ptr(), injected_data.as_ptr(), len_injected_data);
+
+            shake256_flip(sc.0.as_mut_ptr());
+
+            let mut extracted_data = [0u8; 64];
+            let len_extracted_data = extracted_data.len();
+            shake256_extract(sc.0.as_mut_ptr(), extracted_data.as_mut_ptr(), len_extracted_data);
+            assert_eq!(hexencode(extracted_data), "bdfd07908ee0916269975c0200c7af08c5b5503fc4a3e3e978a0d44f24abd4592b955e526d0eb5d84320b9c7a986e9dfcd9b20aeb5badc262de1c785f2836640");
+        };
+    }
+
+    #[test]
+    fn test_shake256_from_seed() {
+        let mut sc = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+        let seed = "This string will be injected in shake256_inject";
+        let len_seed = seed.len();
+        unsafe {
+            shake256_init_prng_from_seed(sc.0.as_mut_ptr(), seed.as_ptr(), len_seed);
+            let mut extracted_data = [0u8; 64];
+            let len_extracted_data = extracted_data.len();
+            shake256_extract(sc.0.as_mut_ptr(), extracted_data.as_mut_ptr(), len_extracted_data);
+            assert_eq!(hexencode(extracted_data), "bdfd07908ee0916269975c0200c7af08c5b5503fc4a3e3e978a0d44f24abd4592b955e526d0eb5d84320b9c7a986e9dfcd9b20aeb5badc262de1c785f2836640");            
         }
-        let mut output = [0u8; 128];
+        
+    }
+
+    #[test]
+    fn test_shake256_from_os_prng() {
+        let mut sc1 = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+        let mut sc2 = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
         unsafe {
-            shake256_extract(test.0.as_mut_ptr(), output.as_mut_ptr(), 128);
+            assert_eq!(
+                0,
+                shake256_init_prng_from_system(sc1.0.as_mut_ptr())
+            );
+            assert_eq!(
+                0,
+                shake256_init_prng_from_system(sc2.0.as_mut_ptr())
+            );
+        }
+        assert_ne!(sc1, sc2);
+    }
+
+    #[test]
+    fn test_falcon512_keygen_from_os_prng() {
+        // Initialize Keypair elements
+        let mut pk1 = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
+        let mut pk2 = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
+        let mut sk1 = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
+        let mut sk2 = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
+        let mut tmp_keygen = [0u8; NEAR_FALCON512_TMPSIZE_KEYGEN];
+
+        let mut sc1 = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+        let mut sc2 = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+
+        unsafe {
+            assert_eq!(
+                0,
+                shake256_init_prng_from_system(sc1.0.as_mut_ptr())
+            );
+            assert_eq!(
+                0,
+                falcon_keygen_make(sc1.0.as_ptr(), NEAR_FALCON_DEGREE, sk1.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk1.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN)
+            );
+            assert_eq!(
+                0,
+                shake256_init_prng_from_system(sc2.0.as_mut_ptr())
+            );
+            assert_eq!(
+                0,
+                falcon_keygen_make(sc2.0.as_ptr(), NEAR_FALCON_DEGREE, sk2.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk2.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN)
+            );
+        }
+        
+        assert_ne!(sc1, sc2);
+        assert_ne!(pk1, pk2);
+    }
+
+    #[test]
+    fn test_falcon512_keygen_from_seed() {
+        //Shake256 part
+        let mut sc = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+        let seed = "This string will be injected in shake256_inject";
+        let len_seed = seed.len();
+        unsafe {
+            shake256_init_prng_from_seed(sc.0.as_mut_ptr(), seed.as_ptr(), len_seed);
+            let mut extracted_data = [0u8; 64];
+            let len_extracted_data = extracted_data.len();
+            shake256_extract(sc.0.as_mut_ptr(), extracted_data.as_mut_ptr(), len_extracted_data);
+            assert_eq!(hexencode(extracted_data), "bdfd07908ee0916269975c0200c7af08c5b5503fc4a3e3e978a0d44f24abd4592b955e526d0eb5d84320b9c7a986e9dfcd9b20aeb5badc262de1c785f2836640");            
         }
 
-        // Initialize Keypair elements
+        // Keygen part
         let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
-        let mut pk2 = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
         let mut sk = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
-        let mut sk2 = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
-        let mut sig = [0u8; NEAR_FALCON512_SIG_PADDED_SIZE];
         let mut tmp_keygen = [0u8; NEAR_FALCON512_TMPSIZE_KEYGEN];
         let mut tmp_makepub = [0u8; NEAR_FALCON512_TMPSIZE_MAKEPUB];
+        unsafe {
+            assert_eq!(
+                0,
+                falcon_keygen_make(sc.0.as_ptr(), NEAR_FALCON_DEGREE, sk.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN)
+            );
+            let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
+            assert_eq!(
+                0,
+                falcon_make_public(pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, sk.as_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, tmp_makepub.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_MAKEPUB)
+            );
+            assert_eq!(
+                NEAR_FALCON_DEGREE as i32,
+                falcon_get_logn(pk.as_ptr(), NEAR_FALCON512_PUBKEY_SIZE)
+            );
+
+        }
+    }
+
+    #[test]
+    fn test_falcon512_signature() {
+        // Initialize Keypair elements
+        let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
+        let mut sk = [0u8; NEAR_FALCON512_PRIVKEY_SIZE];
+        let mut sig = [0u8; NEAR_FALCON512_SIG_PADDED_SIZE];
+        let mut tmp_keygen = [0u8; NEAR_FALCON512_TMPSIZE_KEYGEN];
         let mut tmp_signdyn = [0u8; NEAR_FALCON512_TMPSIZE_SIGNDYN];
-        let tmp_verify = [0u8; NEAR_FALCON512_TMPSIZE_VERIFY];
+        let mut tmp_verify = [0u8; NEAR_FALCON512_TMPSIZE_VERIFY];
+
+        let mut sc = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
+
+        let sig_size = NEAR_FALCON512_SIG_PADDED_SIZE;
+        let data_to_sign = "Hello World !";
+        let len_data_to_sign = data_to_sign.len();
 
         unsafe{
-            let mut test = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
-            shake256_init_prng_from_system(test.0.as_mut_ptr());
-            falcon_keygen_make(test.0.as_ptr(), NEAR_FALCON_DEGREE, sk.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN);
-            dbg!("{}", pk);
+            shake256_init_prng_from_system(sc.0.as_mut_ptr());
+            assert_eq!(
+                0,
+                falcon_keygen_make(sc.0.as_ptr(), NEAR_FALCON_DEGREE, sk.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN)
+            );
+            shake256_init_prng_from_system(sc.0.as_mut_ptr());
+            assert_eq!(
+                0,
+                falcon_sign_dyn(sc.0.as_ptr(), sig.as_mut_ptr(), &sig_size, FALCON_SIG_PADDED, sk.as_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, data_to_sign.as_ptr(), len_data_to_sign, tmp_signdyn.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_SIGNDYN)
+            );
 
-            let mut test = Shake256Context([0u64; SHAKE256_CONTEXT_SIZE]);
-            shake256_init_prng_from_system(test.0.as_mut_ptr());
-            falcon_keygen_make(test.0.as_ptr(), NEAR_FALCON_DEGREE, sk2.as_mut_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, pk2.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_KEYGEN);
-            dbg!("{}", pk2);
-            // Test prng
-            assert_ne!(pk, pk2);
-            // regenerate pubkey
-            let mut pk = [0u8; NEAR_FALCON512_PUBKEY_SIZE];
-            falcon_make_public(pk.as_mut_ptr(), NEAR_FALCON512_PUBKEY_SIZE, sk.as_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, tmp_makepub.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_MAKEPUB);
-
-            shake256_init_prng_from_system(test.0.as_mut_ptr());
-
-            let text = "Bonjour ceci est un petit test";
-            let text_size = text.len();
-            let sig_len = NEAR_FALCON512_SIG_PADDED_SIZE;
-            falcon_sign_dyn(test.0.as_ptr(), sig.as_mut_ptr(), &sig_len, FALCON_SIG_PADDED, sk.as_ptr(), NEAR_FALCON512_PRIVKEY_SIZE, text.as_ptr(), text_size, tmp_signdyn.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_SIGNDYN);
-
-            falcon_verify(sig.as_ptr(), sig_len, FALCON_SIG_PADDED, pk.as_ptr(), NEAR_FALCON512_PUBKEY_SIZE, text.as_ptr(), text_size, tmp_verify.as_ptr(), NEAR_FALCON512_TMPSIZE_VERIFY);
-
-        } ;
+            // Signature verifications
+            assert_eq!(
+                0,
+                falcon_verify(sig.as_ptr(), NEAR_FALCON512_SIG_PADDED_SIZE, FALCON_SIG_PADDED, pk.as_ptr(), NEAR_FALCON512_PUBKEY_SIZE, data_to_sign.as_ptr(), len_data_to_sign, tmp_verify.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_VERIFY)
+            );
+            assert_ne!(
+                0,
+                falcon_verify(sig.as_ptr(), NEAR_FALCON512_SIG_PADDED_SIZE, FALCON_SIG_PADDED, pk.as_ptr(), NEAR_FALCON512_PUBKEY_SIZE, data_to_sign.as_ptr(), len_data_to_sign-1, tmp_verify.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_VERIFY)
+            );
+            assert_ne!(
+                0,
+                falcon_verify(sig.as_ptr(), NEAR_FALCON512_SIG_PADDED_SIZE-1, FALCON_SIG_PADDED, pk.as_ptr(), NEAR_FALCON512_PUBKEY_SIZE, data_to_sign.as_ptr(), len_data_to_sign, tmp_verify.as_mut_ptr(), NEAR_FALCON512_TMPSIZE_VERIFY)
+            );
+        }
     }
 }

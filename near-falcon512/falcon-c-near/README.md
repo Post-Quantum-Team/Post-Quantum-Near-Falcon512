@@ -1,4 +1,4 @@
-# Falcon-512 C implementation
+# Falcon C implementation
 
 This directory contains the code of the Falcon algorithm.
 

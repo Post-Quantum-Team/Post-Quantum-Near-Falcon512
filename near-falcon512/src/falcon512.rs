@@ -1,22 +1,9 @@
 /*!
 falcon-512
 
-These bindings use the clean version from [PQClean][pqc]
+These bindings use the falcon-c-near FFI functions.
 
-# Example
-
-use pqcrypto_falcon::falcon512::*;
-let message = vec![0, 1, 2, 3, 4, 5];
-let (pk, sk) = keypair();
-let sm = sign(&message, &sk);
-let verifiedmsg = open(&sm, &pk).unwrap();
-assert!(verifiedmsg == message);
-
-
-[pqc]: https://github.com/pqclean/pqclean/
 */
-
-// This file is generated.
 
 #[cfg(feature = "serialization")]
 use serde::{Deserialize, Serialize};
@@ -92,7 +79,7 @@ simple_struct!(
     ffi::NEAR_FALCON512_PRIVKEY_SIZE
 );
 
-#[derive(Clone, Copy, Hash)]
+#[derive(Clone, Copy, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DetachedSignature(
     #[cfg_attr(feature = "serialization", serde(with = "BigArray"))]
@@ -170,12 +157,12 @@ pub fn keypair() -> (PublicKey, SecretKey) {
     let mut tmp_keygen = [0u8; ffi::NEAR_FALCON512_TMPSIZE_KEYGEN];
     let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
     generator_from_system_prng(&mut sc);
-    unsafe { 
+    unsafe {
         assert_eq!(
-        ffi::falcon_keygen_make(sc.0.as_ptr(), 
-        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(), 
-        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(), 
-        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), 
+        ffi::falcon_keygen_make(sc.0.as_ptr(),
+        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(),
+        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(),
+        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(),
         ffi::NEAR_FALCON512_TMPSIZE_KEYGEN),
         0); };
     (pk, sk)
@@ -188,12 +175,12 @@ pub fn keypair_from_seed(seed: &[u8]) -> (PublicKey, SecretKey) {
     let mut tmp_keygen = [0u8; ffi::NEAR_FALCON512_TMPSIZE_KEYGEN];
     let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
     generator_from_seed(&mut sc, seed);
-    unsafe { 
+    unsafe {
         assert_eq!(
-        ffi::falcon_keygen_make(sc.0.as_ptr(), 
-        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(), 
-        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(), 
-        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), 
+        ffi::falcon_keygen_make(sc.0.as_ptr(),
+        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(),
+        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(),
+        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(),
         ffi::NEAR_FALCON512_TMPSIZE_KEYGEN),
         0); };
     (pk, sk)
@@ -204,12 +191,12 @@ pub fn keypair_from_shake256context(sc: Shake256Context) -> (PublicKey, SecretKe
     let mut pk = PublicKey::new();
     let mut sk = SecretKey::new();
     let mut tmp_keygen = [0u8; ffi::NEAR_FALCON512_TMPSIZE_KEYGEN];
-    unsafe { 
+    unsafe {
         assert_eq!(
-        ffi::falcon_keygen_make(sc.0.as_ptr(), 
-        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(), 
-        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(), 
-        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(), 
+        ffi::falcon_keygen_make(sc.0.as_ptr(),
+        ffi::NEAR_FALCON_DEGREE, sk.0.as_mut_ptr(),
+        ffi::NEAR_FALCON512_PRIVKEY_SIZE, pk.0.as_mut_ptr(),
+        ffi::NEAR_FALCON512_PUBKEY_SIZE, tmp_keygen.as_mut_ptr(),
         ffi::NEAR_FALCON512_TMPSIZE_KEYGEN),
         0); };
     (pk, sk)
@@ -285,31 +272,54 @@ pub fn verify_detached_signature(
 mod test {
     use super::*;
     use rand::prelude::*;
-    use std::vec::Vec;
+    use std::{vec::Vec};
 
     #[test]
-    pub fn test_sign_detached() {
-        let mut rng = rand::thread_rng();
-        let len: u16 = rng.gen();
-        let message = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+    pub fn test_shake256_generator_from_seed() {
+        let mut sc = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+        let seed = [12u8; 37];
+        generator_from_seed(&mut sc, &seed);
 
-        let (pk, sk) = keypair();
-        let sig = detached_sign(&message, &sk);
-        assert!(verify_detached_signature(&sig, &message, &pk).is_ok());
-        assert!(!verify_detached_signature(&sig, &message[..message.len() - 1], &pk).is_ok());
+        let mut expected_result: [u64; ffi::SHAKE256_CONTEXT_SIZE] =
+        [
+            868082074056920076,868082074056920076,868082074056920076,
+            868082074056920076,34136602184716,0,0,0,0,0,0,0,0,0,0,0,
+            9223372036854775808,0,0,0,0,0,0,0,0,136,
+        ];
+        assert_eq!(expected_result, sc.0);
+        expected_result[1] = 124;
+        assert_ne!(expected_result, sc.0);
     }
 
     #[test]
-    pub fn test_sign_detached_seed() {
+    pub fn test_shake256_generator_from_random() {
+        let mut sc1 = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+        let mut sc2 = Shake256Context([0u64; ffi::SHAKE256_CONTEXT_SIZE]);
+        generator_from_system_prng(&mut sc1);
+        generator_from_system_prng(&mut sc2);
+
+        assert_ne!(sc1, sc2);
+    }
+
+    #[test]
+    pub fn test_sign_falcon() {
         let mut rng = rand::thread_rng();
         let len: u16 = rng.gen();
         let message = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
 
-        let seed = "Crypto is NEAR !";
-        let (pk, sk) = keypair_from_seed(seed.as_bytes());
-        let sig = detached_sign(&message, &sk);
-        assert!(verify_detached_signature(&sig, &message, &pk).is_ok());
-        assert!(!verify_detached_signature(&sig, &message[..message.len() - 1], &pk).is_ok());
+        let seed1 = "Crypto is NEAR !";
+
+        let (pk1, sk1) = keypair_from_seed(seed1.as_bytes());
+        let (_, sk2) = keypair();
+        let pk2 = public_key_from_secret_key(sk2);
+        let sig1 = detached_sign(&message, &sk1);
+        let sig2 = detached_sign(&message, &sk2);
+        assert!(verify_detached_signature(&sig1, &message, &pk1).is_ok());
+        assert!(verify_detached_signature(&sig2, &message, &pk2).is_ok());
+        assert!(!verify_detached_signature(&sig2, &message, &pk1).is_ok());
+        assert!(!verify_detached_signature(&sig1, &message, &pk2).is_ok());
+        assert!(!verify_detached_signature(&sig1, &message[..message.len() - 1], &pk1).is_ok());
+        assert!(!verify_detached_signature(&sig2, &message[..message.len() - 1], &pk2).is_ok());
     }
 
     #[test]

@@ -7,7 +7,7 @@ use std::path::{PathBuf};
 macro_rules! build_clean {
     ($variant:expr) => {
         let mut builder = cc::Build::new();
-        let target_dir: PathBuf = ["falcon512-c-near", "code"]
+        let target_dir: PathBuf = ["falcon-c-near", "code"]
             .iter()
             .collect();
 
@@ -35,7 +35,7 @@ macro_rules! build_avx2 {
     ($variant:expr) => {
 
         let mut builder = cc::Build::new();
-        let target_dir: PathBuf = ["falcon512-c-near", "code"]
+        let target_dir: PathBuf = ["falcon-c-near", "code"]
             .iter()
             .collect();
 
