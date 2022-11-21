@@ -14,71 +14,122 @@ use crate::ffi::{self, shake256_init_prng_from_seed, Shake256Context, shake256_i
 use pqcrypto_traits::sign as primitive;
 use pqcrypto_traits::{Error, Result};
 
-macro_rules! simple_struct {
-    ($type: ident, $size: expr) => {
-        #[derive(Clone, Copy, Debug)]
-        #[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
-        pub struct $type(
-            #[cfg_attr(feature = "serialization", serde(with = "BigArray"))] [u8; $size],
-        );
 
-        impl $type {
-            /// Generates an uninitialized object
-            ///
-            /// Used to pass to ``ffi`` interfaces.
-            ///
-            /// Internal use only!
-            fn new() -> Self {
-                $type([0u8; $size])
-            }
+
+///SecretKey Structure
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
+pub struct SecretKey (
+    #[cfg_attr(feature = "serialization", serde(with = "BigArray"))] [u8; ffi::NEAR_FALCON512_PRIVKEY_SIZE],
+);
+
+impl SecretKey {
+    /// Generates an uninitialized object
+    ///
+    /// Used to pass to ``ffi`` interfaces.
+    ///
+    /// Internal use only!
+    fn new() -> Self {
+        SecretKey([0u8; ffi::NEAR_FALCON512_PRIVKEY_SIZE])
+    }
+}
+
+impl primitive::SecretKey for SecretKey {
+    /// Get this object as a byte slice
+    #[inline]
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Construct this object from a byte slice
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() != ffi::NEAR_FALCON512_PRIVKEY_SIZE {
+            Err(Error::BadLength {
+                name: stringify!(SecretKey),
+                actual: bytes.len(),
+                expected: ffi::NEAR_FALCON512_PRIVKEY_SIZE,
+            })
+        } else {
+            let mut array = [0u8; ffi::NEAR_FALCON512_PRIVKEY_SIZE];
+            array.copy_from_slice(bytes);
+            Ok(SecretKey(array))
         }
+    }
+}
 
-        impl primitive::$type for $type {
-            /// Get this object as a byte slice
-            #[inline]
-            fn as_bytes(&self) -> &[u8] {
-                &self.0
-            }
+impl From<SecretKey> for [u8; ffi::NEAR_FALCON512_PRIVKEY_SIZE] {
+    fn from(secret_key: SecretKey) -> Self {
+        secret_key.0
+    }
+}
 
-            /// Construct this object from a byte slice
-            fn from_bytes(bytes: &[u8]) -> Result<Self> {
-                if bytes.len() != $size {
-                    Err(Error::BadLength {
-                        name: stringify!($type),
-                        actual: bytes.len(),
-                        expected: $size,
-                    })
-                } else {
-                    let mut array = [0u8; $size];
-                    array.copy_from_slice(bytes);
-                    Ok($type(array))
-                }
-            }
-        }
-
-        impl PartialEq for $type {
-            /// By no means constant time comparison
-            fn eq(&self, other: &Self) -> bool {
-                self.0
-                    .iter()
-                    .zip(other.0.iter())
-                    .try_for_each(|(a, b)| if a == b { Ok(()) } else { Err(()) })
-                    .is_ok()
-            }
-        }
-    };
+impl PartialEq for SecretKey {
+    /// By no means constant time comparison
+    fn eq(&self, other: &Self) -> bool {
+        self.0
+            .iter()
+            .zip(other.0.iter())
+            .try_for_each(|(a, b)| if a == b { Ok(()) } else { Err(()) })
+            .is_ok()
+    }
 }
 
 
-simple_struct!(
-    PublicKey,
-    ffi::NEAR_FALCON512_PUBKEY_SIZE
-);
-simple_struct!(
-    SecretKey,
-    ffi::NEAR_FALCON512_PRIVKEY_SIZE
+
+///PublicKey Structure
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serialization", derive(Serialize, Deserialize))]
+pub struct PublicKey (
+    #[cfg_attr(feature = "serialization", serde(with = "BigArray"))] [u8; ffi::NEAR_FALCON512_PUBKEY_SIZE],
 );
 
+impl PublicKey {
+    fn new() -> Self {
+        PublicKey([0u8; ffi::NEAR_FALCON512_PUBKEY_SIZE])
+    }
+}
+
+impl primitive::PublicKey for PublicKey {
+    /// Get this object as a byte slice
+    #[inline]
+    fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Construct this object from a byte slice
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() != ffi::NEAR_FALCON512_PUBKEY_SIZE {
+            Err(Error::BadLength {
+                name: stringify!(PublicKey),
+                actual: bytes.len(),
+                expected: ffi::NEAR_FALCON512_PUBKEY_SIZE,
+            })
+        } else {
+            let mut array = [0u8; ffi::NEAR_FALCON512_PUBKEY_SIZE];
+            array.copy_from_slice(bytes);
+            Ok(PublicKey(array))
+        }
+    }
+}
+
+impl From<PublicKey> for [u8; ffi::NEAR_FALCON512_PUBKEY_SIZE] {
+    fn from(pubkey: PublicKey) -> Self {
+        pubkey.0
+    }
+}
+
+impl PartialEq for PublicKey {
+    /// By no means constant time comparison
+    fn eq(&self, other: &Self) -> bool {
+        self.0
+            .iter()
+            .zip(other.0.iter())
+            .try_for_each(|(a, b)| if a == b { Ok(()) } else { Err(()) })
+            .is_ok()
+    }
+}
+
+// Digital Signature structure
 #[derive(Clone, Copy, Hash, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DetachedSignature(
@@ -115,6 +166,12 @@ impl primitive::DetachedSignature for DetachedSignature {
         let mut array = [0u8; ffi::NEAR_FALCON512_SIG_PADDED_SIZE];
         array[..bytes.len()].copy_from_slice(bytes);
         Ok(DetachedSignature(array, actual))
+    }
+}
+
+impl From<DetachedSignature> for [u8; ffi::NEAR_FALCON512_SIG_PADDED_SIZE] {
+    fn from(sig: DetachedSignature) -> Self {
+        sig.0
     }
 }
 
@@ -382,5 +439,21 @@ mod test {
         let (pk2, sk2) = keypair();
         assert_ne!(pk, pk2);
         assert_ne!(sk, sk2);
+    }
+
+    #[test]
+    pub fn test_from_trait() {
+        let (pk, sk) = keypair();
+        let mut rng = rand::thread_rng();
+        let len: u16 = rng.gen();
+        let message = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<_>>();
+        let sig = detached_sign(&message, &sk);
+
+        let sk_array = <[u8; ffi::NEAR_FALCON512_PRIVKEY_SIZE]>::from(sk);
+        let pk_array = <[u8; ffi::NEAR_FALCON512_PUBKEY_SIZE]>::from(pk);
+        let sig_array = <[u8; ffi::NEAR_FALCON512_SIG_PADDED_SIZE]>::from(sig);
+        assert_eq!(sk_array, sk.0);
+        assert_eq!(pk_array, pk.0);
+        assert_eq!(sig_array, sig.0);
     }
 }
